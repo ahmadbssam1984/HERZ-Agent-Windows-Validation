@@ -1,0 +1,56 @@
+name: HERZ Command Center - actual Windows candidate checks
+on:
+  push:
+    branches: [command-center-validation]
+    paths: [HERZ_Command_Center_Validation_Source.zip]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: herz-command-center-windows-candidate
+  cancel-in-progress: true
+jobs:
+  validate:
+    if: github.event.repository.private == false && github.repository == 'ahmadbssam1984/HERZ-Agent-Windows-Validation' && github.ref == 'refs/heads/command-center-validation'
+    runs-on: windows-2025
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+      DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE: 'true'
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_NOLOGO: '1'
+      NUGET_XMLDOC_MODE: skip
+    steps:
+      - name: Check out the reviewed public source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify and unpack reviewed source
+        run: |
+          $file = 'HERZ_Command_Center_Validation_Source.zip'
+          if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne '892f16e0d13446739f857e861e2d59d822574d38ccb2344f7927ca430deda9bb') { throw 'Source archive hash mismatch' }
+          if (Test-Path -LiteralPath command-center) { throw 'Unexpected existing source directory' }
+          Expand-Archive -LiteralPath $file -DestinationPath .
+      - name: Build pinned Windows executables and test programs
+        working-directory: command-center
+        run: ./ci/prepare-windows-build.ps1
+      - name: Run candidate checks with a genuine ordinary Windows account
+        working-directory: command-center
+        run: ./ci/windows-standard-user.ps1 -PackageRoot ./.ci-build/package -OutputDirectory ./ci-results
+      - name: Print sanitized evidence
+        if: always()
+        run: |
+          if (Test-Path -LiteralPath ./command-center/ci-results) {
+            Get-ChildItem -LiteralPath ./command-center/ci-results -Filter *.json -File | Sort-Object Name | ForEach-Object {
+              Write-Output ('REPORT ' + $_.Name)
+              Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
+            }
+          } else {
+            Write-Output '{"status":"not_executed","reason":"Build or preparation ended before test reports were created."}'
+          }
