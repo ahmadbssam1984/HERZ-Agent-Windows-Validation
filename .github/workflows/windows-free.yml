@@ -25,7 +25,7 @@ jobs:
       - name: Verify and extract reviewed public source
         shell: pwsh
         run: |
-          $expected = 'c68e74d4314b6d3dca80aefb06f448775c27185f51d55dcc56aa6652f9c28c87'
+          $expected = 'b1f487d4746ce5c7551a80e1646f2feec6c5ff37d31cf2fc1cf8598fd6167012'
           $actual = (Get-FileHash -LiteralPath .\public-source.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actual -ne $expected) { throw 'Reviewed source SHA256 mismatch.' }
           Expand-Archive -LiteralPath .\public-source.zip -DestinationPath . -Force
